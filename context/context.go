@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -50,6 +51,7 @@ const (
 	InternalError                             = 500
 	defaultPort                               = "8080"
 	defaultHttpPattern                        = "/"
+	daprSidecarGRPCHost                       = "127.0.0.1"
 	daprSidecarGRPCPort                       = "50001"
 	TracingProviderSkywalking                 = "skywalking"
 	TracingProviderOpentelemetry              = "opentelemetry"
@@ -262,6 +264,7 @@ type FunctionContext struct {
 	Out            Out                `json:"out,omitempty"`
 	Error          error              `json:"error,omitempty"`
 	HttpPattern    string             `json:"httpPattern,omitempty"`
+	daprGRPCHost   string             `json:"daprGRPCHost,omitempty"`
 	podName        string
 	podNamespace   string
 	daprClient     dapr.Client
@@ -451,7 +454,8 @@ func (ctx *FunctionContext) InitDaprClientIfNil() {
 		defer ctx.mu.Unlock()
 
 		for attempts := 120; attempts > 0; attempts-- {
-			c, e := dapr.NewClientWithPort(clientGRPCPort)
+			address := net.JoinHostPort(ctx.daprGRPCHost, clientGRPCPort)
+			c, e := dapr.NewClientWithAddress(address)
 			if e == nil {
 				ctx.daprClient = c
 				break
@@ -849,6 +853,10 @@ func parseContext() (*FunctionContext, error) {
 
 	if ctx.HttpPattern == "" {
 		ctx.HttpPattern = defaultHttpPattern
+	}
+
+	if ctx.daprGRPCHost == "" {
+		ctx.daprGRPCHost = daprSidecarGRPCHost
 	}
 
 	// When using self-hosted mode, configure the client port via env,
